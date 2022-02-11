@@ -646,6 +646,9 @@ abstract class KotlinCompile @Inject constructor(
         return super.getClasspath()
     }
 
+    @get:Input
+    abstract val useKotlinAbiSnapshot: Property<Boolean>
+
     @get:Nested
     abstract val classpathSnapshotProperties: ClasspathSnapshotProperties
 
@@ -765,7 +768,8 @@ abstract class KotlinCompile @Inject constructor(
                 workingDir = taskBuildCacheableOutputDirectory.get().asFile,
                 usePreciseJavaTracking = usePreciseJavaTracking,
                 disableMultiModuleIC = disableMultiModuleIC,
-                multiModuleICSettings = multiModuleICSettings
+                multiModuleICSettings = multiModuleICSettings,
+                withAbiSnapshot = useKotlinAbiSnapshot.get()
             )
         } else null
 

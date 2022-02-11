@@ -929,7 +929,7 @@ Finished executing task ':$taskName'|
                 add("--dry-run")
             }
             if (options.abiSnapshot) {
-                add("-Dkotlin.incremental.classpath.snapshot.enabled=true")
+                add("-Pkotlin.incremental.classpath.snapshot.enabled=true")
             }
 
             if (options.hierarchicalMPPStructureSupport != null) {
