@@ -223,9 +223,14 @@ class K2JsIrCompiler : CLICompiler<K2JSCompilerArguments>() {
                 val strStatus = when (updateStatus) {
                     CacheUpdateStatus.FAST_PATH -> "up-to-date; fast check"
                     CacheUpdateStatus.NO_DIRTY_FILES -> "up-to-date; full check"
-                    CacheUpdateStatus.DIRTY -> "dirty; cache building"
+                    CacheUpdateStatus.DIRTY ->
+                        "dirty${if (updateStatus.updatedAll) "; all ${updateStatus.updated.size} sources updated" else ""}; cache building"
                 }
                 messageCollector.report(INFO, "IC per-file is $strStatus duration ${now - start}ms; module [${File(updatedModule).name}]")
+                if (!updateStatus.updatedAll) {
+                    updateStatus.updated.forEach { messageCollector.report(INFO, "  Updated: $it") }
+                }
+                updateStatus.removed.forEach { messageCollector.report(INFO, "  Removed: $it") }
                 start = now
             }
         } else emptyList()
@@ -274,7 +279,6 @@ class K2JsIrCompiler : CLICompiler<K2JSCompilerArguments>() {
 
                 val beforeIc2Js = System.currentTimeMillis()
 
-                val caches = loadModuleCaches(icCaches)
                 val moduleKind = configurationJs[JSConfigurationKeys.MODULE_KIND]!!
 
                 val translationMode = TranslationMode.fromFlags(false, arguments.irPerModule)
@@ -284,7 +288,7 @@ class K2JsIrCompiler : CLICompiler<K2JSCompilerArguments>() {
                     moduleKind,
                     SourceMapsInfo.from(configurationJs),
                     setOf(translationMode),
-                    caches,
+                    icCaches,
                     relativeRequirePath = true
                 )
 

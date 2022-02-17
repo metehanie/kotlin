@@ -52,8 +52,7 @@ abstract class AbstractInvalidationTest : KotlinTestWithEnvironment() {
         deserializer: JsIrLinker,
         configuration: CompilerConfiguration,
         dirtyFiles: Collection<String>?, // if null consider the whole module dirty
-        deletedFiles: Collection<String>,
-        cacheConsumer: PersistentCacheConsumer,
+        artifactCache: ArtifactCache,
         exportedDeclarations: Set<FqName>,
         mainArguments: List<String>?,
     ) {
@@ -160,7 +159,6 @@ abstract class AbstractInvalidationTest : KotlinTestWithEnvironment() {
                 buildCachesAndCheck(
                     moduleStep,
                     configuration,
-                    moduleSourceDir,
                     outputKlibFile,
                     moduleCacheDir,
                     dependencies,
@@ -180,7 +178,6 @@ abstract class AbstractInvalidationTest : KotlinTestWithEnvironment() {
     private fun buildCachesAndCheck(
         moduleStep: ModuleInfo.ModuleStep,
         configuration: CompilerConfiguration,
-        sourceDir: File,
         moduleKlibFile: File,
         moduleCacheDir: File,
         dependencies: List<File>,
@@ -188,35 +185,6 @@ abstract class AbstractInvalidationTest : KotlinTestWithEnvironment() {
         expectedDirtyFiles: List<File>,
         expectedDeletedFiles: List<File>
     ) {
-        @Suppress("UNUSED_PARAMETER")
-        fun dirtyFilesChecker(
-            currentModule: IrModuleFragment,
-            dependencies: Collection<IrModuleFragment>,
-            deserializer: JsIrLinker,
-            configuration: CompilerConfiguration,
-            invalidatedDirtyFiles: Collection<String>?, // if null consider the whole module dirty
-            deletedFiles: Collection<String>,
-            cacheConsumer: PersistentCacheConsumer,
-            exportedDeclarations: Set<FqName>,
-            mainArguments: List<String>?,
-        ) {
-            val actualDirtyFiles =
-                invalidatedDirtyFiles?.map { File(it).canonicalPath } ?: sourceDir.filteredKtFiles().map { it.canonicalPath }
-            val expectedDirtyFilesCanonical = expectedDirtyFiles.map { it.canonicalPath }
-
-            JUnit4Assertions.assertSameElements(expectedDirtyFilesCanonical, actualDirtyFiles) {
-                "Mismatched DIRTY files for module $moduleKlibFile at step ${moduleStep.id}"
-            }
-
-            val actualDeletedFiles =
-                deletedFiles.map { File(it).canonicalPath }
-            val expectedDeletedFilesCanonical = expectedDeletedFiles.map { it.canonicalPath }
-
-            JUnit4Assertions.assertSameElements(expectedDeletedFilesCanonical, actualDeletedFiles) {
-                "Mismatched DELETED files for module $moduleKlibFile at step ${moduleStep.id}"
-            }
-        }
-
         val dependenciesPaths = mutableListOf<String>()
         dependencies.mapTo(dependenciesPaths) { it.canonicalPath }
         dependenciesPaths.add(moduleKlibFile.canonicalPath)
@@ -229,7 +197,7 @@ abstract class AbstractInvalidationTest : KotlinTestWithEnvironment() {
             icCaches.map { it.canonicalPath },// + moduleCacheDir.canonicalPath,
             IrFactoryImpl,
             null, // TODO: mainArguments
-            ::dirtyFilesChecker
+            ::emptyChecker
         )
 
         if (StepDirectives.FAST_PATH_UPDATE in moduleStep.directives) {
@@ -242,30 +210,37 @@ abstract class AbstractInvalidationTest : KotlinTestWithEnvironment() {
             val filePaths = expectedDirtyFiles.joinToString(",", "[", "]")
             "Up to date is not expected for module $moduleKlibFile at step ${moduleStep.id}. Expected dirtyFiles are $filePaths"
         }
+
+        val actualDirtyFiles = updateStatus.updated.map { File(it).canonicalPath }
+        val expectedDirtyFilesCanonical = expectedDirtyFiles.map { it.canonicalPath }
+        JUnit4Assertions.assertSameElements(expectedDirtyFilesCanonical, actualDirtyFiles) {
+            "Mismatched DIRTY files for module $moduleKlibFile at step ${moduleStep.id}"
+        }
+
+        val actualDeletedFiles = updateStatus.removed.map { File(it).canonicalPath }
+        val expectedDeletedFilesCanonical = expectedDeletedFiles.map { it.canonicalPath }
+        JUnit4Assertions.assertSameElements(expectedDeletedFilesCanonical, actualDeletedFiles) {
+            "Mismatched DELETED files for module $moduleKlibFile at step ${moduleStep.id}"
+        }
     }
 
     private fun actualizeCacheForModuleWithPrepare(
         moduleName: String,
         cachePath: String,
         compilerConfiguration: CompilerConfiguration,
-        dependencies: Collection<ModulePath>,
+        dependencies: Collection<String>,
         icCachePaths: Collection<String>,
         irFactory: IrFactory,
         mainArguments: List<String>?,
         executor: CacheExecutor
     ): CacheUpdateStatus {
-        val modulePath = moduleName.toCanonicalPath()
-
-        val icCacheMap: Map<ModulePath, CacheInfo> = loadCacheInfo(icCachePaths).also {
-            it[modulePath] = CacheInfo.loadOrCreate(cachePath, modulePath)
-        }
-
+        val modulePath = File(moduleName).canonicalPath
         val statuses = mutableMapOf<String, CacheUpdateStatus>()
         actualizeCaches(
             modulePath,
             compilerConfiguration,
             dependencies,
-            icCacheMap.map { it.value.path },
+            icCachePaths + cachePath,
             { irFactory },
             mainArguments,
             executor

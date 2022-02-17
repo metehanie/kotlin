@@ -51,11 +51,12 @@ private fun IrFile.shouldSkipDump(): Boolean {
 class DumpIrTreeVisitor(
     out: Appendable,
     normalizeNames: Boolean = false,
-    private val stableOrder: Boolean = false
+    private val stableOrder: Boolean = false,
+    verboseTypeParameter: Boolean = false
 ) : IrElementVisitor<Unit, String> {
 
     private val printer = Printer(out, "  ")
-    private val elementRenderer = RenderIrElementVisitor(normalizeNames, !stableOrder)
+    private val elementRenderer = RenderIrElementVisitor(normalizeNames, !stableOrder, verboseTypeParameter)
     private fun IrType.render() = elementRenderer.renderType(this)
 
     private fun List<IrDeclaration>.ordered(): List<IrDeclaration> {

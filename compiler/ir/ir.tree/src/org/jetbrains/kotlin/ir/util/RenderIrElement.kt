@@ -28,7 +28,11 @@ import org.jetbrains.kotlin.utils.addIfNotNull
 fun IrElement.render() =
     accept(RenderIrElementVisitor(), null)
 
-class RenderIrElementVisitor(private val normalizeNames: Boolean = false, private val verboseErrorTypes: Boolean = true) : IrElementVisitor<String, Nothing?> {
+class RenderIrElementVisitor(
+    private val normalizeNames: Boolean = false,
+    private val verboseErrorTypes: Boolean = true,
+    private val verboseTypeParameter: Boolean = false
+) : IrElementVisitor<String, Nothing?> {
     private val nameMap: MutableMap<IrVariableSymbol, String> = mutableMapOf()
     private var temporaryIndex: Int = 0
 
@@ -506,7 +510,8 @@ class RenderIrElementVisitor(private val normalizeNames: Boolean = false, privat
         declaration.runTrimEnd {
             "TYPE_PARAMETER ${renderOriginIfNonTrivial()}" +
                     "name:$name index:$index variance:$variance " +
-                    "superTypes:[${superTypes.joinToString(separator = "; ") { it.render() }}]"
+                    "superTypes:[${superTypes.joinToString(separator = "; ") { it.render() }}]" +
+                    if (verboseTypeParameter) " reified:$isReified" else ""
         }
 
     override fun visitValueParameter(declaration: IrValueParameter, data: Nothing?): String =
