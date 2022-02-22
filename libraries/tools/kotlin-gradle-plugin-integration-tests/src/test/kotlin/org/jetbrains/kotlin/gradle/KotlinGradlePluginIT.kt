@@ -1281,7 +1281,6 @@ class KotlinGradleIT : BaseGradleIT() {
         }
         build("compileKotlin", "--rerun-tasks") {
             assertSuccessful()
-            assertTasksExecuted(":compileKotlin")
             val compiledKotlinClasses = fileInWorkingDir(classesDir()).allFilesWithExtension("class").toList()
 
             assertTrue(compiledKotlinClasses.isEmpty())
@@ -1343,7 +1342,10 @@ class KotlinGradleIT : BaseGradleIT() {
 
         build(
             "assemble",
-            options = defaultBuildOptions().copy(dryRun = true)
+            options = defaultBuildOptions().copy(
+                dryRun = true,
+                warningMode = WarningMode.Summary // bug in Gradle: https://github.com/gradle/gradle/issues/15796
+            )
         ) {
             assertSuccessful()
         }

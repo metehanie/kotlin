@@ -39,7 +39,6 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.KotlinCompilationData
 import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.KotlinMetadataCompilationData
 import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.refinesClosure
 import org.jetbrains.kotlin.gradle.plugin.sources.resolveAllDependsOnSourceSets
-import org.jetbrains.kotlin.gradle.report.BuildReportMode
 import org.jetbrains.kotlin.gradle.utils.propertyWithConvention
 import java.io.File
 import javax.inject.Inject
@@ -103,7 +102,7 @@ abstract class KotlinCompileCommon @Inject constructor(
         K2MetadataCompilerArguments()
 
     override fun getSourceRoots(): SourceRoots =
-        SourceRoots.KotlinOnly.create(getSource(), sourceFilesExtensions.get())
+        SourceRoots.KotlinOnly.create(sources, sourceFilesExtensions.get())
 
     override fun setupCompilerArgs(args: K2MetadataCompilerArguments, defaultsOnly: Boolean, ignoreClasspathResolutionErrors: Boolean) {
         args.apply { fillDefaultValues() }
@@ -121,7 +120,7 @@ abstract class KotlinCompileCommon @Inject constructor(
 
         with(args) {
             classpath = classpathList.joinToString(File.pathSeparator)
-            destination = destinationDir.canonicalPath
+            destination = destinationDirectory.get().asFile.canonicalPath
 
             friendPaths = this@KotlinCompileCommon.friendPaths.files.map { it.absolutePath }.toTypedArray()
             refinesPaths = refinesMetadataPaths.map { it.absolutePath }.toTypedArray()

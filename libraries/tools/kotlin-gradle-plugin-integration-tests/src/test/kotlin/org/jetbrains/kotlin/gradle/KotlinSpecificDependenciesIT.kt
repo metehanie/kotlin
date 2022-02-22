@@ -66,13 +66,22 @@ class KotlinSpecificDependenciesIT : BaseGradleIT() {
             with(project) {
                 prepare()
                 tasks.forEach { task ->
-                    project.checkTaskCompileClasspath(task, listOf("kotlin-stdlib" /*any of them*/))
+                    project.checkTaskCompileClasspath(
+                        task,
+                        listOf("kotlin-stdlib" /*any of them*/),
+                        isBuildGradleKts = project.projectDir.resolve("build.gradle.kts").exists()
+                    )
                 }
                 projectDir.resolve("gradle.properties").appendText(
                     "\nkotlin.stdlib.default.dependency=false"
                 )
                 tasks.forEach { task ->
-                    project.checkTaskCompileClasspath(task, listOf(), checkModulesNotInClasspath = listOf("kotlin-stdlib" /*any of them*/))
+                    project.checkTaskCompileClasspath(
+                        task,
+                        listOf(),
+                        checkModulesNotInClasspath = listOf("kotlin-stdlib" /*any of them*/),
+                        isBuildGradleKts = project.projectDir.resolve("build.gradle.kts").exists()
+                    )
                 }
             }
         }
@@ -190,7 +199,12 @@ class KotlinSpecificDependenciesIT : BaseGradleIT() {
                 )
                 classpathElementsExpectedByTask.forEach { (task, expected) ->
                     val (notInClasspath, inClasspath) = expected.partition { it.startsWith("!") }
-                    project.checkTaskCompileClasspath(task, inClasspath, notInClasspath.map { it.removePrefix("!") })
+                    project.checkTaskCompileClasspath(
+                        task,
+                        inClasspath,
+                        notInClasspath.map { it.removePrefix("!") },
+                        isBuildGradleKts = project.projectDir.resolve("build.gradle.kts").exists()
+                    )
                 }
                 filesExpectedByConfiguration.forEach { (configuration, expected) ->
                     val (notInItems, inItems) = expected.partition { it.startsWith("!") }
@@ -225,7 +239,8 @@ class KotlinSpecificDependenciesIT : BaseGradleIT() {
                     checkTaskCompileClasspath(
                         compileTaskName,
                         listOf(expectedModule),
-                        frameworks.map { "kotlin-test-" + it.second + "-" } - expectedModule
+                        frameworks.map { "kotlin-test-" + it.second + "-" } - expectedModule,
+                        isBuildGradleKts = project.projectDir.resolve("build.gradle.kts").exists()
                     )
                 }
             }
@@ -309,11 +324,20 @@ fun BaseGradleIT.Project.checkTaskCompileClasspath(
     taskPath: String,
     checkModulesInClasspath: List<String> = emptyList(),
     checkModulesNotInClasspath: List<String> = emptyList(),
-    isNative: Boolean = false
+    isNative: Boolean = false,
+    isBuildGradleKts: Boolean = false
 ) {
     val subproject = taskPath.substringBeforeLast(":").takeIf { it.isNotEmpty() && it != taskPath }
     val taskName = taskPath.removePrefix(subproject.orEmpty())
-    val taskClass = if (isNative) "org.jetbrains.kotlin.gradle.tasks.AbstractKotlinNativeCompile<*, *>" else "AbstractCompile"
+    val taskClass = if (isNative) {
+        "org.jetbrains.kotlin.gradle.tasks.AbstractKotlinNativeCompile<*, *, *>"
+    } else {
+        if (isBuildGradleKts) {
+            "org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile<*>"
+        } else {
+            "org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile<?>"
+        }
+    }
     val expression = """(tasks.getByName("$taskName") as $taskClass).${if (isNative) "libraries" else "classpath"}.toList()"""
     checkPrintedItems(subproject, expression, checkModulesInClasspath, checkModulesNotInClasspath)
 }
