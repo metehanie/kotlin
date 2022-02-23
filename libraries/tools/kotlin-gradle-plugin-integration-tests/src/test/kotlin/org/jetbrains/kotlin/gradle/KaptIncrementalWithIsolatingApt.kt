@@ -303,9 +303,10 @@ class KaptIncrementalWithIsolatingApt : KaptIncrementalIT() {
                     current.replace("protected FieldClassParcel", "private FieldClassParcel")
                 }
 
-            build(":mylibrary:assembleDebug") {
+            build(":mylibrary:assembleDebug", forceOutput = true) {
                 assertEquals(
                     listOf(
+                        "baseLibrary/build/tmp/kapt3/stubs/debug/error/NonExistentClass.java",
                         "mylibrary/src/main/java/com/example/lib/ExampleParcel.java",
                         "baseLibrary/src/main/java/com/example/lib2/basemodule/BaseClassParcel.java",
                     ).map { projectPath.resolve(it).toRealPath().toString() }.toSet(),
