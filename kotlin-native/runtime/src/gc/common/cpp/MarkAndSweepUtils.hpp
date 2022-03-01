@@ -9,6 +9,7 @@
 #include "ExtraObjectData.hpp"
 #include "FinalizerHooks.hpp"
 #include "GlobalData.hpp"
+#include "IntrusiveList.hpp"
 #include "Logging.hpp"
 #include "Memory.h"
 #include "ObjectOps.hpp"

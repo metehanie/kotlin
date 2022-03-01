@@ -9,6 +9,7 @@
 
 #include "Allocator.hpp"
 #include "GCScheduler.hpp"
+#include "IntrusiveList.hpp"
 #include "ObjectFactory.hpp"
 #include "ScopedThread.hpp"
 #include "Types.h"
@@ -29,6 +30,19 @@ class FinalizerProcessor;
 // TODO: Also make mark concurrent.
 class ConcurrentMarkAndSweep : private Pinned {
 public:
+    struct ObjectTraits {
+        static ObjHeader* next(const ObjHeader& value) noexcept {
+            // TODO: Add const overloads into ObjectFactory.
+            ObjHeader* valuePtr = &const_cast<ObjHeader&>(value);
+            auto& objectData = mm::ObjectFactory<ConcurrentMarkAndSweep>::NodeRef::From(valuePtr).GCObjectData();
+            return objectData.next();
+        }
+
+        static void setNext(ObjHeader& value, ObjHeader* next) noexcept {
+            auto& objectData = mm::ObjectFactory<ConcurrentMarkAndSweep>::NodeRef::From(&value).GCObjectData();
+            objectData.setNext(next);
+        }
+    };
 
     class ObjectData {
     public:
@@ -41,7 +55,11 @@ public:
         Color color() const noexcept { return color_; }
         void setColor(Color color) noexcept { color_ = color; }
 
+        ObjHeader* next() const noexcept { return next_; }
+        void setNext(ObjHeader* next) noexcept { next_ = next; }
+
     private:
+        ObjHeader* next_ = nullptr;
         Color color_ = Color::kWhite;
     };
 
@@ -89,7 +107,7 @@ private:
     ScopedThread gcThread_;
     KStdUniquePtr<FinalizerProcessor> finalizerProcessor_;
 
-    KStdVector<ObjHeader*> markQueue_;
+    intrusive_forward_list<ObjHeader, ObjectTraits> markQueue_;
 };
 
 } // namespace gc
