@@ -24,24 +24,30 @@ using namespace kotlin;
 
 namespace {
 
-struct CollectTraits {
-    using MarkQueue = gc::VectorMarkQueueTraits;
-};
-
 struct MarkTraits {
-    using MarkQueue = gc::VectorMarkQueueTraits;
+    // This implementation of mark queue allocates memory during collection.
+    using MarkQueue = KStdVector<ObjHeader*>;
 
-    static bool IsMarked(ObjHeader* object) noexcept {
-        auto& objectData = mm::ObjectFactory<gc::ConcurrentMarkAndSweep>::NodeRef::From(object).GCObjectData();
-        return objectData.color() == gc::ConcurrentMarkAndSweep::ObjectData::Color::kBlack;
+    static bool IsEmpty(const MarkQueue& queue) noexcept {
+        return queue.empty();
     }
 
-    static bool TryMark(ObjHeader* object) noexcept {
+    static void Clear(MarkQueue& queue) noexcept {
+        queue.clear();
+    }
+
+    static ObjHeader* Dequeue(MarkQueue& queue) noexcept {
+        auto top = queue.back();
+        queue.pop_back();
+        return top;
+    }
+
+    static void Enqueue(MarkQueue& queue, ObjHeader* object) noexcept {
         auto& objectData = mm::ObjectFactory<gc::ConcurrentMarkAndSweep>::NodeRef::From(object).GCObjectData();
-        if (objectData.color() == gc::ConcurrentMarkAndSweep::ObjectData::Color::kBlack) return false;
+        if (objectData.color() == gc::ConcurrentMarkAndSweep::ObjectData::Color::kBlack) return;
         objectData.setColor(gc::ConcurrentMarkAndSweep::ObjectData::Color::kBlack);
-        return true;
-    };
+        queue.push_back(object);
+    }
 };
 
 struct SweepTraits {
@@ -91,7 +97,7 @@ gc::ConcurrentMarkAndSweep::ConcurrentMarkAndSweep(
     objectFactory_(objectFactory),
     gcScheduler_(gcScheduler),
     finalizerProcessor_(make_unique<FinalizerProcessor>([this](int64_t epoch) { state_.finalized(epoch); })) {
-    graySet_.reserve(1000);
+    markQueue_.reserve(1000);
     gcScheduler_.SetScheduleGC([this]() NO_INLINE {
         RuntimeLogDebug({kTagGC}, "Scheduling GC by thread %d", konan::currentThreadId());
         // This call acquires a lock, so we need to ensure that we're in the safe state.
@@ -149,15 +155,15 @@ bool gc::ConcurrentMarkAndSweep::PerformFullGC(int64_t epoch) noexcept {
     state_.start(epoch);
     RuntimeLogInfo(
             {kTagGC}, "Started GC epoch %" PRId64 ". Time since last GC %" PRIu64 " microseconds", epoch, timeStartUs - lastGCTimestampUs_);
-    gc::collectRootSet<CollectTraits>(graySet_);
+    gc::collectRootSet<MarkTraits>(markQueue_);
     auto timeRootSetUs = konan::getTimeMicros();
     // Can be unsafe, because we've stopped the world.
 
     auto objectsCountBefore = objectFactory_.GetSizeUnsafe();
     RuntimeLogInfo(
-            {kTagGC}, "Collected root set of size %zu in %" PRIu64 " microseconds", graySet_.size(),
+            {kTagGC}, "Collected root set of size %zu in %" PRIu64 " microseconds", markQueue_.size(),
             timeRootSetUs - timeSuspendUs);
-    auto markStats = gc::Mark<MarkTraits>(graySet_);
+    auto markStats = gc::Mark<MarkTraits>(markQueue_);
     auto timeMarkUs = konan::getTimeMicros();
     RuntimeLogDebug({kTagGC}, "Marked %zu objects in %" PRIu64 " microseconds. Processed %zu duplicate entries in the gray set", markStats.aliveHeapSet, timeMarkUs - timeRootSetUs, markStats.duplicateEntries);
     scheduler.gcData().UpdateAliveSetBytes(markStats.aliveHeapSetBytes);

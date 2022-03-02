@@ -89,7 +89,7 @@ private:
     ScopedThread gcThread_;
     KStdUniquePtr<FinalizerProcessor> finalizerProcessor_;
 
-    KStdVector<ObjHeader*> graySet_;
+    KStdVector<ObjHeader*> markQueue_;
 };
 
 } // namespace gc

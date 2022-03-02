@@ -22,23 +22,6 @@
 namespace kotlin {
 namespace gc {
 
-// This implementation of mark queue may allocates memory during collection.
-struct VectorMarkQueueTraits {
-    using Type = KStdVector<ObjHeader*>;
-
-    static bool empty(const Type& queue) noexcept { return queue.empty(); }
-
-    static void clear(Type& queue) noexcept { queue.clear(); }
-
-    static ObjHeader* pop(Type& queue) noexcept {
-        auto top = queue.back();
-        queue.pop_back();
-        return top;
-    }
-
-    static void push(Type& queue, ObjHeader* item) noexcept { queue.push_back(item); }
-};
-
 struct MarkStats {
     // How many objects are alive.
     size_t aliveHeapSet = 0;
@@ -49,24 +32,20 @@ struct MarkStats {
 };
 
 template <typename Traits>
-MarkStats Mark(typename Traits::MarkQueue::Type& graySet) noexcept {
+MarkStats Mark(typename Traits::MarkQueue& markQueue) noexcept {
     MarkStats stats;
-    while (!Traits::MarkQueue::empty(graySet)) {
-        ObjHeader* top = Traits::MarkQueue::pop(graySet);
+    while (!Traits::IsEmpty(markQueue)) {
+        ObjHeader* top = Traits::Dequeue(markQueue);
 
         RuntimeAssert(!isNullOrMarker(top), "Got invalid reference %p in gray set", top);
         RuntimeAssert(top->heap(), "Got non-heap reference %p in gray set, permanent=%d stack=%d", top, top->permanent(), top->local());
 
-        if (!Traits::TryMark(top)) {
-            ++stats.duplicateEntries;
-            continue;
-        }
         stats.aliveHeapSet++;
         stats.aliveHeapSetBytes += mm::GetAllocatedHeapSize(top);
 
         traverseReferredObjects(top, [&](ObjHeader* field) noexcept {
-            if (!isNullOrMarker(field) && field->heap() && !Traits::IsMarked(field)) {
-                Traits::MarkQueue::push(graySet, field);
+            if (!isNullOrMarker(field) && field->heap()) {
+                Traits::Enqueue(markQueue, field);
             }
         });
 
@@ -76,7 +55,7 @@ MarkStats Mark(typename Traits::MarkQueue::Type& graySet) noexcept {
                 RuntimeAssert(
                         weakCounter->heap(), "Weak counter must be a heap object. object=%p counter=%p permanent=%d local=%d", top,
                         weakCounter, weakCounter->permanent(), weakCounter->local());
-                Traits::MarkQueue::push(graySet, weakCounter);
+                Traits::Enqueue(markQueue, weakCounter);
             }
         }
     }
@@ -132,8 +111,8 @@ typename Traits::ObjectFactory::FinalizerQueue Sweep(typename Traits::ObjectFact
 }
 
 template <typename Traits>
-void collectRootSet(typename Traits::MarkQueue::Type& graySet) noexcept {
-    Traits::MarkQueue::clear(graySet);
+void collectRootSet(typename Traits::MarkQueue& markQueue) noexcept {
+    Traits::Clear(markQueue);
     for (auto& thread : mm::GlobalData::Instance().threadRegistry().LockForIter()) {
         // TODO: Maybe it's more efficient to do by the suspending thread?
         thread.Publish();
@@ -144,12 +123,12 @@ void collectRootSet(typename Traits::MarkQueue::Type& graySet) noexcept {
             auto* object = value.object;
             if (!isNullOrMarker(object)) {
                 if (object->heap()) {
-                    Traits::MarkQueue::push(graySet, object);
+                    Traits::Enqueue(markQueue, object);
                 } else {
                     traverseReferredObjects(object, [&](ObjHeader* field) noexcept {
                         // Each permanent and stack object has own entry in the root set.
                         if (field->heap() && !isNullOrMarker(field)) {
-                            Traits::MarkQueue::push(graySet, field);
+                            Traits::Enqueue(markQueue, field);
                         }
                     });
                     RuntimeAssert(!object->has_meta_object(), "Non-heap object %p may not have an extra object data", object);
@@ -173,12 +152,12 @@ void collectRootSet(typename Traits::MarkQueue::Type& graySet) noexcept {
         auto* object = value.object;
         if (!isNullOrMarker(object)) {
             if (object->heap()) {
-                Traits::MarkQueue::push(graySet, object);
+                Traits::Enqueue(markQueue, object);
             } else {
                 traverseReferredObjects(object, [&](ObjHeader* field) noexcept {
                     // Each permanent and stack object has own entry in the root set.
                     if (field->heap() && !isNullOrMarker(field)) {
-                        Traits::MarkQueue::push(graySet, field);
+                        Traits::Enqueue(markQueue, field);
                     }
                 });
                 RuntimeAssert(!object->has_meta_object(), "Non-heap object %p may not have an extra object data", object);
