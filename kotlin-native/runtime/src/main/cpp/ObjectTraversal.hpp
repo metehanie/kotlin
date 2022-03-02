@@ -41,6 +41,34 @@ void traverseReferredObjects(ObjHeader* object, F process) noexcept(noexcept(pro
     });
 }
 
+template <typename F>
+void traverseReferredObjectsWithExtra(ObjHeader* object, F process) noexcept(noexcept(process(std::declval<ObjHeader*>()))) {
+    const TypeInfo* typeInfo = object->type_info();
+    // Only consider arrays of objects, not arrays of primitives.
+    if (typeInfo != theArrayTypeInfo) {
+        for (int index = 0; index < typeInfo->objOffsetsCount_; index++) {
+            process(*reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(object) + typeInfo->objOffsets_[index]));
+        }
+    } else {
+        ArrayHeader* array = object->array();
+        for (uint32_t index = 0; index < array->count_; index++) {
+            process(*ArrayAddressOfElementAt(array, index));
+        }
+    }
+    if (object->has_meta_object()) {
+        process(object->GetWeakCounter());
+    }
+}
+
+template <typename F>
+void traverseReferredHeapObjects(ObjHeader* object, F process) noexcept(noexcept(process(std::declval<ObjHeader*>()))) {
+    traverseReferredObjectsWithExtra(object, [&process](ObjHeader* field) noexcept(noexcept(process(std::declval<ObjHeader*>()))) {
+        if (!isNullOrMarker(field) && field->heap()) {
+            process(field);
+        }
+    });
+}
+
 } // namespace kotlin
 
 #endif // RUNTIME_OBJECT_TRAVERSAL_H

@@ -43,21 +43,10 @@ MarkStats Mark(typename Traits::MarkQueue& markQueue) noexcept {
         stats.aliveHeapSet++;
         stats.aliveHeapSetBytes += mm::GetAllocatedHeapSize(top);
 
-        traverseReferredObjects(top, [&](ObjHeader* field) noexcept {
-            if (!isNullOrMarker(field) && field->heap()) {
-                Traits::Enqueue(markQueue, field);
-            }
+        // Each permanent and stack object has own entry in the root set. Traversing heap objects is enough.
+        traverseReferredHeapObjects(top, [&](ObjHeader* field) noexcept {
+            Traits::Enqueue(markQueue, field);
         });
-
-        if (auto* extraObjectData = mm::ExtraObjectData::Get(top)) {
-            auto weakCounter = extraObjectData->GetWeakReferenceCounter();
-            if (!isNullOrMarker(weakCounter)) {
-                RuntimeAssert(
-                        weakCounter->heap(), "Weak counter must be a heap object. object=%p counter=%p permanent=%d local=%d", top,
-                        weakCounter, weakCounter->permanent(), weakCounter->local());
-                Traits::Enqueue(markQueue, weakCounter);
-            }
-        }
     }
     return stats;
 }
@@ -125,13 +114,10 @@ void collectRootSet(typename Traits::MarkQueue& markQueue) noexcept {
                 if (object->heap()) {
                     Traits::Enqueue(markQueue, object);
                 } else {
-                    traverseReferredObjects(object, [&](ObjHeader* field) noexcept {
-                        // Each permanent and stack object has own entry in the root set.
-                        if (field->heap() && !isNullOrMarker(field)) {
-                            Traits::Enqueue(markQueue, field);
-                        }
+                    // Each permanent and stack object has own entry in the root set. Traversing heap objects is enough.
+                    traverseReferredHeapObjects(object, [&](ObjHeader* field) noexcept {
+                        Traits::Enqueue(markQueue, field);
                     });
-                    RuntimeAssert(!object->has_meta_object(), "Non-heap object %p may not have an extra object data", object);
                 }
                 switch (value.source) {
                     case mm::ThreadRootSet::Source::kStack:
@@ -154,13 +140,10 @@ void collectRootSet(typename Traits::MarkQueue& markQueue) noexcept {
             if (object->heap()) {
                 Traits::Enqueue(markQueue, object);
             } else {
-                traverseReferredObjects(object, [&](ObjHeader* field) noexcept {
-                    // Each permanent and stack object has own entry in the root set.
-                    if (field->heap() && !isNullOrMarker(field)) {
-                        Traits::Enqueue(markQueue, field);
-                    }
+                // Each permanent and stack object has own entry in the root set. Traversing heap objects is enough.
+                traverseReferredHeapObjects(object, [&](ObjHeader* field) noexcept {
+                    Traits::Enqueue(markQueue, field);
                 });
-                RuntimeAssert(!object->has_meta_object(), "Non-heap object %p may not have an extra object data", object);
             }
             switch (value.source) {
                 case mm::GlobalRootSet::Source::kGlobal:
