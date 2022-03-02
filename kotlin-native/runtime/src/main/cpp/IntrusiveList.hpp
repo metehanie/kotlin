@@ -8,7 +8,9 @@
 #include <cstddef>
 #include <iterator>
 #include <limits>
+#if __has_include(<variant>)
 #include <variant>
+#endif
 
 #include "KAssert.h"
 #include "Utils.hpp"
@@ -199,6 +201,7 @@ public:
         return iterator(prevNode);
     }
 
+#if __has_include(<variant>)
     // Unlike `std::forward_list` this cannot return `iterator`, because for empty `(first, last)`
     // interval, this has to return `before_begin()`, and for non-empty intervals: a regular `iterator`.
     template <typename InputIt>
@@ -212,6 +215,7 @@ public:
         auto it = insert_after(pos, value);
         return insert_after(it, std::move(first), std::move(last));
     }
+#endif
 
     iterator erase_after(const_iterator pos) noexcept {
         pointer prevNode = pos.node_;
