@@ -21,7 +21,6 @@ import org.jetbrains.kotlin.gradle.model.impl.SourceSetImpl
 import org.jetbrains.kotlin.gradle.plugin.*
 import org.jetbrains.kotlin.gradle.plugin.getConvention
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinAndroidTarget
-import org.jetbrains.kotlin.gradle.plugin.mpp.associateWithTransitiveClosure
 import org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile
 
 /**
@@ -127,7 +126,7 @@ class KotlinModelBuilder(private val kotlinPluginVersion: String, private val an
             return CompilerArgumentsImpl(
                 serializedCompilerArguments,
                 defaultSerializedCompilerArguments,
-                classpath.toList()
+                libraries.toList()
             )
         }
 
