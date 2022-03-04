@@ -210,15 +210,16 @@ class K2JsIrCompiler : CLICompiler<K2JSCompilerArguments>() {
 
             var start = System.currentTimeMillis()
 
-            actualizeCaches(
+            val cacheUpdater = CacheUpdater(
                 includes,
-                configurationJs,
                 libraries,
+                configurationJs,
                 cacheDirectories,
                 { IrFactoryImplForJsIC(WholeWorldStageController()) },
                 mainCallArguments,
-                ::buildCacheForModuleFiles,
-            ) { updateStatus, updatedModule ->
+                ::buildCacheForModuleFiles
+            )
+            cacheUpdater.actualizeCaches { updateStatus, updatedModule ->
                 val now = System.currentTimeMillis()
                 val strStatus = when (updateStatus) {
                     CacheUpdateStatus.FAST_PATH -> "up-to-date; fast check"
