@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.ir.backend.js.utils.*
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
+import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
 import org.jetbrains.kotlin.ir.util.isEffectivelyExternal
 import org.jetbrains.kotlin.ir.util.parentAsClass
 import org.jetbrains.kotlin.js.backend.ast.*
@@ -40,7 +41,8 @@ class JsNameLinkingNamer(private val context: JsIrBackendContext) : IrNamerBase(
 
             when {
                 jsModule != null -> {
-                    val name = JsName(declaration.getJsNameOrKotlinName().asString(), false)
+                    val parent = declaration.fqNameWhenAvailable!!.parent()
+                    val name = JsName(sanitizeName(parent.child(declaration.getJsNameOrKotlinName()).asString()), false)
                     importedModules += JsImportedModule(jsModule, name, name.makeRef())
                     return name
                 }
