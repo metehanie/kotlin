@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.resolve.lazy.descriptors;
 
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiNameIdentifierOwner;
+import kotlin.Pair;
 import kotlin.annotations.jvm.ReadOnly;
 import kotlin.collections.CollectionsKt;
 import kotlin.jvm.functions.Function1;
@@ -149,7 +150,9 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
         }
 
         boolean isLocal = classOrObject != null && KtPsiUtil.isLocal(classOrObject);
-        this.visibility = isLocal ? DescriptorVisibilities.LOCAL : resolveVisibilityFromModifiers(modifierList, DescriptorVisibilities.DEFAULT_VISIBILITY);
+        this.visibility = isLocal
+                          ? DescriptorVisibilities.LOCAL
+                          : resolveVisibilityFromModifiers(modifierList, DescriptorVisibilities.DEFAULT_VISIBILITY);
 
         this.isInner = modifierList != null && modifierList.hasModifier(INNER_KEYWORD) && !isIllegalInner(this);
         this.isData = modifierList != null && modifierList.hasModifier(KtTokens.DATA_KEYWORD);
@@ -233,7 +236,8 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
             KtTypeParameterList typeParameterList = classInfo.getTypeParameterList();
             if (typeParameterList == null) return Collections.emptyList();
 
-            boolean isAnonymousObject = (classInfo.getClassKind() == ClassKind.CLASS) && (classInfo.getCorrespondingClassOrObject() instanceof KtObjectDeclaration);
+            boolean isAnonymousObject = (classInfo.getClassKind() == ClassKind.CLASS) &&
+                                        (classInfo.getCorrespondingClassOrObject() instanceof KtObjectDeclaration);
 
             if (classInfo.getClassKind() == ClassKind.ENUM_CLASS) {
                 c.getTrace().report(TYPE_PARAMETERS_IN_ENUM.on(typeParameterList));
@@ -245,7 +249,8 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
                 DiagnosticFactory0<KtTypeParameterList> diagnosticFactory;
                 if (c.getLanguageVersionSettings().supportsFeature(LanguageFeature.ProhibitTypeParametersInAnonymousObjects)) {
                     diagnosticFactory = TYPE_PARAMETERS_IN_OBJECT;
-                } else {
+                }
+                else {
                     diagnosticFactory = TYPE_PARAMETERS_IN_ANONYMOUS_OBJECT;
                 }
                 c.getTrace().report(diagnosticFactory.on(typeParameterList));
@@ -254,9 +259,10 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
             List<KtTypeParameter> typeParameters = typeParameterList.getParameters();
             if (typeParameters.isEmpty()) return Collections.emptyList();
 
-            boolean supportClassTypeParameterAnnotations = c.getLanguageVersionSettings().supportsFeature(LanguageFeature.ClassTypeParameterAnnotations);
+            boolean supportClassTypeParameterAnnotations =
+                    c.getLanguageVersionSettings().supportsFeature(LanguageFeature.ClassTypeParameterAnnotations);
             List<TypeParameterDescriptor> parameters = new ArrayList<>(typeParameters.size());
-            
+
             for (int i = 0; i < typeParameters.size(); i++) {
                 KtTypeParameter parameter = typeParameters.get(i);
                 Annotations lazyAnnotations;
@@ -275,7 +281,8 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
                             },
                             parameter.getAnnotationEntries()
                     );
-                } else {
+                }
+                else {
                     lazyAnnotations = Annotations.Companion.getEMPTY();
                 }
 
@@ -291,16 +298,17 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
                 )
         );
 
-        boolean freedomForSealedInterfacesSupported = c.getLanguageVersionSettings().supportsFeature(LanguageFeature.AllowSealedInheritorsInDifferentFilesOfSamePackage);
+        boolean freedomForSealedInterfacesSupported =
+                c.getLanguageVersionSettings().supportsFeature(LanguageFeature.AllowSealedInheritorsInDifferentFilesOfSamePackage);
         this.sealedSubclasses =
-            storageManager.createLazyValue(() -> {
-                if (getModality() == Modality.SEALED) {
-                    return c.getSealedClassInheritorsProvider().computeSealedSubclasses(this, freedomForSealedInterfacesSupported);
-                }
-                else {
-                    return Collections.emptyList();
-                }
-            });
+                storageManager.createLazyValue(() -> {
+                    if (getModality() == Modality.SEALED) {
+                        return c.getSealedClassInheritorsProvider().computeSealedSubclasses(this, freedomForSealedInterfacesSupported);
+                    }
+                    else {
+                        return Collections.emptyList();
+                    }
+                });
         this.contextReceivers = storageManager.createLazyValue(() -> {
             if (classOrObject == null) {
                 return CollectionsKt.emptyList();
@@ -316,7 +324,7 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
                                 kotlinType,
                                 Annotations.Companion.getEMPTY()
                         );
-            }).collect(Collectors.toList());
+                    }).collect(Collectors.toList());
         });
     }
 
@@ -371,8 +379,9 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
                 kotlinTypeRefinerForDependentModule -> {
                     LazyClassMemberScope scopeForDeclaredMembers =
                             !kotlinTypeRefinerForDependentModule.isRefinementNeededForModule(c.getModuleDescriptor())
-                                ? null
-                                : scopesHolderForClass.getScope(c.getKotlinTypeCheckerOfOwnerModule().getKotlinTypeRefiner()); // essentially, a scope for owner-module
+                            ? null
+                            : scopesHolderForClass.getScope(
+                                    c.getKotlinTypeCheckerOfOwnerModule().getKotlinTypeRefiner()); // essentially, a scope for owner-module
 
                     return new LazyClassMemberScope(
                             c, declarationProvider, this, c.getTrace(), kotlinTypeRefinerForDependentModule,
@@ -501,8 +510,9 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
 
     @Nullable
     private ClassDescriptorWithResolutionScopes computeCompanionObjectDescriptor(@Nullable KtObjectDeclaration companionObject) {
-        if (companionObject == null)
+        if (companionObject == null) {
             return createSyntheticCompanionObjectDescriptor();
+        }
         KtClassLikeInfo companionObjectInfo = getCompanionObjectInfo(companionObject);
         if (!(companionObjectInfo instanceof KtClassOrObjectInfo)) {
             return null;
@@ -513,7 +523,7 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
         ClassDescriptor companionObjectDescriptor = c.getTrace().get(BindingContext.CLASS, companionObject);
         if (companionObjectDescriptor instanceof ClassDescriptorWithResolutionScopes) {
             assert DescriptorUtils.isCompanionObject(companionObjectDescriptor) : "Not a companion object: " + companionObjectDescriptor;
-            return (ClassDescriptorWithResolutionScopes)companionObjectDescriptor;
+            return (ClassDescriptorWithResolutionScopes) companionObjectDescriptor;
         }
         else {
             return null;
@@ -522,13 +532,17 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
 
     private ClassDescriptorWithResolutionScopes createSyntheticCompanionObjectDescriptor() {
         Name syntheticCompanionName = c.getSyntheticResolveExtension().getSyntheticCompanionObjectNameIfNeeded(this);
-        if (syntheticCompanionName == null)
+        if (syntheticCompanionName == null) {
             return null;
+        }
         SyntheticClassOrObjectDescriptor companionDescriptor = new SyntheticClassOrObjectDescriptor(c,
                 /* parentClassOrObject= */ classOrObject,
-                this, syntheticCompanionName, getSource(),
+                                                                                                    this, syntheticCompanionName,
+                                                                                                    getSource(),
                 /* outerScope= */ getOuterScope(),
-                Modality.FINAL, PUBLIC, Annotations.Companion.getEMPTY(), PRIVATE, ClassKind.OBJECT, true);
+                                                                                                    Modality.FINAL, PUBLIC,
+                                                                                                    Annotations.Companion.getEMPTY(),
+                                                                                                    PRIVATE, ClassKind.OBJECT, true);
         companionDescriptor.initialize();
         return companionDescriptor;
     }
@@ -644,6 +658,28 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
         return new InlineClassRepresentation<>(
                 SpecialNames.SAFE_IDENTIFIER_FOR_NO_NAME, c.getModuleDescriptor().getBuiltIns().getAnyType()
         );
+    }
+
+    @Nullable
+    @Override
+    public MultiFieldValueClassRepresentation<SimpleType> getMultiFieldValueClassRepresentation() {
+        if (!InlineClassesUtilsKt.isValueClass(this) || InlineClassesUtilsKt.isInlineClass(this)) {
+            return null;
+        }
+
+        ClassConstructorDescriptor constructor = getUnsubstitutedPrimaryConstructor();
+        // Don't crash on invalid code. It is IC, not MFVC.
+        if (constructor == null) {
+            return null;
+        }
+        List<ValueParameterDescriptor> parameters = constructor.getValueParameters();
+        if (parameters.size() <= 1) {
+            return null;
+        }
+        List<Pair<Name, SimpleType>> properties = parameters.stream()
+                .map(parameter -> new Pair<>(parameter.getName(), (SimpleType) parameter.getType()))
+                .collect(Collectors.toList());
+        return new MultiFieldValueClassRepresentation<>(properties);
     }
 
     @Override
