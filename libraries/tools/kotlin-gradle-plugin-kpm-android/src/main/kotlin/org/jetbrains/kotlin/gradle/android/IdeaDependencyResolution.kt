@@ -20,9 +20,7 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.containingVariants
 
 @OptIn(ExternalVariantApi::class)
 val isAndroidFragment = FragmentConstraint { fragment ->
-    fragment.containingVariants.all { variant ->
-        variant is KotlinGradleVariant && androidDslKey in variant.external
-    }
+    fragment.containingVariants.all { variant -> androidDslKey in variant.external }
 }
 
 @OptIn(ExternalVariantApi::class)
