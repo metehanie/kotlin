@@ -11,6 +11,7 @@ import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.fakeElement
 import org.jetbrains.kotlin.fir.declarations.FirDeclarationOrigin
+import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.declarations.FirVariable
 import org.jetbrains.kotlin.fir.declarations.builder.buildProperty
 import org.jetbrains.kotlin.fir.declarations.impl.FirDeclarationStatusImpl
@@ -30,6 +31,7 @@ fun FirVariable.toQualifiedAccess(): FirQualifiedAccessExpression = buildPropert
         name = this@toQualifiedAccess.name
         resolvedSymbol = this@toQualifiedAccess.symbol
     }
+    typeRef = this@toQualifiedAccess.returnTypeRef
 }
 
 fun generateTemporaryVariable(
@@ -39,7 +41,7 @@ fun generateTemporaryVariable(
     initializer: FirExpression,
     typeRef: FirTypeRef? = null,
     extractedAnnotations: Collection<FirAnnotation>? = null,
-): FirVariable =
+): FirProperty =
     buildProperty {
         this.source = source
         this.moduleData = moduleData
@@ -66,7 +68,7 @@ fun generateTemporaryVariable(
     specialName: String,
     initializer: FirExpression,
     extractedAnnotations: Collection<FirAnnotation>? = null,
-): FirVariable =
+): FirProperty =
     generateTemporaryVariable(
         moduleData,
         source,
