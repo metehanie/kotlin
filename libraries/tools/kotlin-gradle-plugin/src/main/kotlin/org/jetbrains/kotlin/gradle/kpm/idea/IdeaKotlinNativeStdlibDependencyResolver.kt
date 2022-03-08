@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.compilerRunner.konanHome
 import org.jetbrains.kotlin.gradle.plugin.getKotlinPluginVersion
 import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.KotlinGradleFragment
 
-object IdeaKotlinNativeStdlibDependencyResolver : IdeaKotlinDependencyResolver {
+internal object IdeaKotlinNativeStdlibDependencyResolver : IdeaKotlinDependencyResolver {
     override fun resolve(fragment: KotlinGradleFragment): Set<IdeaKotlinDependency> {
         return setOf(
             IdeaKotlinResolvedBinaryDependencyImpl(
