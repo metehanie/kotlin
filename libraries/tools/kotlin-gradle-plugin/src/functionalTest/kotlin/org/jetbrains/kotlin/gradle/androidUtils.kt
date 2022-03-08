@@ -8,7 +8,6 @@ package org.jetbrains.kotlin.gradle
 import org.junit.Assume
 import java.io.File
 
-
 val isAndroidSdkAvailable: Boolean = System.getenv("ANDROID_SDK_ROOT")?.let { root -> File(root).exists() } ?: false
 
 fun assumeAndroidSdkAvailable() {
