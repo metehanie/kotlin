@@ -9,7 +9,7 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.KotlinGradleFragment
 import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.path
 import org.jetbrains.kotlin.utils.addToStdlib.ifNotEmpty
 
-object IdeaKotlinMissingFileDependencyLogger : IdeaKotlinDependencyEffect {
+internal object IdeaKotlinMissingFileDependencyLogger : IdeaKotlinDependencyEffect {
     override fun invoke(fragment: KotlinGradleFragment, dependencies: Set<IdeaKotlinDependency>) {
         dependencies.filterIsInstance<IdeaKotlinResolvedBinaryDependency>()
             .filter { !it.binaryFile.exists() }
