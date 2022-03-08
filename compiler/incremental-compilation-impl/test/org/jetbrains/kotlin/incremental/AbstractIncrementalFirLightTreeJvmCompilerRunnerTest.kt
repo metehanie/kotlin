@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.incremental
 
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.incremental.testingUtils.BuildLogFinder
+import org.jetbrains.kotlin.test.runTest
 import java.io.File
 
 abstract class AbstractIncrementalFirLightTreeJvmCompilerRunnerTest : AbstractIncrementalJvmCompilerRunnerTest() {
@@ -20,4 +21,8 @@ abstract class AbstractIncrementalFirLightTreeJvmCompilerRunnerTest : AbstractIn
 
     override val buildLogFinder: BuildLogFinder
         get() = BuildLogFinder(isGradleEnabled = true, isFirEnabled = true) // TODO: investigate cases that need isGradleEnabled - the combination looks fragile
+
+    override fun runTest() {
+        runTest { super.runTest() }
+    }
 }
