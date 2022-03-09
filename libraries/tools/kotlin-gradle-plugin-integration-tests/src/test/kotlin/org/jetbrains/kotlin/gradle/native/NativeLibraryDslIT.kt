@@ -7,11 +7,14 @@ package org.jetbrains.kotlin.gradle.native
 
 import org.jetbrains.kotlin.gradle.BaseGradleIT
 import org.jetbrains.kotlin.gradle.GradleVersionRequired
+import org.jetbrains.kotlin.gradle.KOTLIN_VERSION
 import org.jetbrains.kotlin.gradle.native.GeneralNativeIT.Companion.withNativeCommandLineArguments
+import org.jetbrains.kotlin.gradle.transformProjectWithPluginsDsl
 import org.jetbrains.kotlin.konan.target.HostManager
 import org.junit.Assume
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import java.io.File
 import kotlin.test.Test
 
 class NativeLibraryDslIT : BaseGradleIT() {
@@ -19,7 +22,7 @@ class NativeLibraryDslIT : BaseGradleIT() {
 
     @Test
     fun `check registered gradle tasks`() {
-        with(Project("new-kn-library-dsl")) {
+        with(transformProjectWithPluginsDsl("new-kn-library-dsl")) {
             build(":shared:tasks") {
                 assertSuccessful()
                 assertTasksRegistered(
@@ -47,7 +50,7 @@ class NativeLibraryDslIT : BaseGradleIT() {
 
     @Test
     fun `link shared library from two gradle modules`() {
-        with(Project("new-kn-library-dsl")) {
+        with(transformProjectWithPluginsDsl("new-kn-library-dsl")) {
             build(":shared:assembleMyslibDebugSharedLibraryLinuxX64") {
                 assertSuccessful()
                 assertTasksExecuted(
@@ -63,7 +66,7 @@ class NativeLibraryDslIT : BaseGradleIT() {
 
     @Test
     fun `link shared library from single gradle module`() {
-        with(Project("new-kn-library-dsl")) {
+        with(transformProjectWithPluginsDsl("new-kn-library-dsl")) {
             build(":shared:assembleMylibDebugSharedLibraryLinuxX64") {
                 assertSuccessful()
                 assertTasksExecuted(
@@ -86,8 +89,7 @@ class NativeLibraryDslIT : BaseGradleIT() {
 
     @Test
     fun `link shared library from single gradle module with additional link args`() {
-        with(Project("new-kn-library-dsl")) {
-            setupWorkingDir()
+        with(transformProjectWithPluginsDsl("new-kn-library-dsl")) {
             gradleProperties().appendText("\nkotlin.native.linkArgs=-Xfoo=bar -Xbaz=qux")
             build(":shared:assembleMylibDebugSharedLibraryLinuxX64") {
                 assertSuccessful()
@@ -112,7 +114,7 @@ class NativeLibraryDslIT : BaseGradleIT() {
     @Test
     fun `link release XCFramework from two gradle modules`() {
         Assume.assumeTrue(HostManager.hostIsMac)
-        with(Project("new-kn-library-dsl")) {
+        with(transformProjectWithPluginsDsl("new-kn-library-dsl")) {
             build(":shared:assembleSharedReleaseXCFramework") {
                 assertSuccessful()
                 assertTasksExecuted(
@@ -128,6 +130,59 @@ class NativeLibraryDslIT : BaseGradleIT() {
                     ":shared:assembleSharedDebugXCFramework"
                 )
                 assertFileExists("/shared/build/out/xcframework/release/shared.xcframework")
+            }
+        }
+    }
+
+    @Test
+    fun `check error when there aren't targets and artifacts`() {
+        with(transformProjectWithPluginsDsl("new-kn-library-dsl")) {
+            val artDir = projectDir.resolve("art")
+            artDir.mkdirs()
+            val artBuildFile = File(artDir, "build.gradle.kts")
+            artBuildFile.createNewFile()
+            artBuildFile.writeText("""
+                plugins {
+                    kotlin("multiplatform")
+                }
+            """.trimIndent())
+            gradleSettingsScript().appendText("\ninclude(\":art\")")
+
+            build(":art:tasks") {
+                assertFailed()
+                assertContains("Please initialize at least one Kotlin target or artifact in 'art (:art)'.")
+            }
+        }
+    }
+
+    @Test
+    fun `configuration is success when there aren't targets but are artifacts`() {
+        with(transformProjectWithPluginsDsl("new-kn-library-dsl")) {
+            val artDir = projectDir.resolve("art")
+            artDir.mkdirs()
+            val artBuildFile = File(artDir, "build.gradle.kts")
+            artBuildFile.createNewFile()
+            artBuildFile.writeText("""
+                plugins {
+                    kotlin("multiplatform")
+                }
+                
+                kotlinArtifacts {
+                    Native.XCFramework("Foo") {
+                        targets(iosX64, iosArm64, iosSimulatorArm64)
+                        setModules(
+                            project(":shared"),
+                            project(":lib")
+                        )
+                   }
+                }
+            """.trimIndent())
+
+            gradleSettingsScript().appendText("\ninclude(\":art\")")
+
+            build(":art:tasks") {
+                assertSuccessful()
+                assertTasksRegistered(":art:assembleFooXCFramework")
             }
         }
     }

@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.gradle.targets.native.tasks.artifact
 
 import org.gradle.api.Action
 import org.gradle.api.Project
+import org.gradle.kotlin.dsl.extra
 import org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType
 import org.jetbrains.kotlin.konan.target.KonanTarget
 import javax.inject.Inject
@@ -16,7 +17,15 @@ private inline fun <reified T : KotlinArtifact> Project.kotlinArtifact(configure
     kotlinArtifact(name.replace(SAFE_NAME_PATTERN, "_"), configure)
 }
 
+private const val KOTLIN_ARTIFACT_PROPERTY = "kotlin.artifact.registered"
+internal var Project.hasRegisteredArtifact: Boolean
+    get() = extra.has(KOTLIN_ARTIFACT_PROPERTY)
+    private set(value) {
+        extra.set(KOTLIN_ARTIFACT_PROPERTY, value)
+    }
+
 private inline fun <reified T : KotlinArtifact> Project.kotlinArtifact(name: String, configure: Action<T>) {
+    project.hasRegisteredArtifact = true
     val artifact = objects.newInstance(T::class.java)
     artifact.addModule(this)
     configure.execute(artifact)
