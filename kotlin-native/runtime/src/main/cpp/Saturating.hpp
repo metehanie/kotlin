@@ -266,6 +266,15 @@ using uint_sat32_t = saturating<uint32_t>;
 using uint_sat64_t = saturating<uint64_t>;
 using size_sat_t = saturating<size_t>;
 
+template <typename T>
+struct is_saturating : public std::bool_constant<false> {};
+
+template <typename T>
+struct is_saturating<saturating<T>> : public std::bool_constant<true> {};
+
+template <typename T>
+inline constexpr bool is_saturating_v = is_saturating<T>::value;
+
 } // namespace kotlin
 
 namespace std {

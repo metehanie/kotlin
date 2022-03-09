@@ -553,6 +553,25 @@ TEST(SaturatingTest, CommonTypeWithIntegral) {
     static_assert(std::is_same_v<std::common_type_t<uint_sat64_t, uint64_t>, uint_sat64_t>);
 }
 
+TEST(SaturatingTest, IsSaturating) {
+    static_assert(!is_saturating_v<int8_t>);
+    static_assert(!is_saturating_v<int16_t>);
+    static_assert(!is_saturating_v<int32_t>);
+    static_assert(!is_saturating_v<int64_t>);
+    static_assert(!is_saturating_v<uint8_t>);
+    static_assert(!is_saturating_v<uint16_t>);
+    static_assert(!is_saturating_v<uint32_t>);
+    static_assert(!is_saturating_v<uint64_t>);
+    static_assert(is_saturating_v<int_sat8_t>);
+    static_assert(is_saturating_v<int_sat16_t>);
+    static_assert(is_saturating_v<int_sat32_t>);
+    static_assert(is_saturating_v<int_sat64_t>);
+    static_assert(is_saturating_v<uint_sat8_t>);
+    static_assert(is_saturating_v<uint_sat16_t>);
+    static_assert(is_saturating_v<uint_sat32_t>);
+    static_assert(is_saturating_v<uint_sat64_t>);
+}
+
 namespace {
 
 template <typename T>
