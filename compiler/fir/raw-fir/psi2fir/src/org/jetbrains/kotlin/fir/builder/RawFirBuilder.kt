@@ -371,7 +371,7 @@ open class RawFirBuilder(
                 if (this?.visibility != null && this.visibility != Visibilities.Unknown) this.visibility else property.visibility
             // Downward propagation of `inline` and `external` modifiers (from property to its accessors)
             val status =
-                FirDeclarationStatusImpl(accessorVisibility, this?.modality).apply {
+                FirDeclarationStatusImpl(accessorVisibility, this?.modality ?: property.modality).apply {
                     isInline = property.hasModifier(INLINE_KEYWORD) ||
                             this@toFirPropertyAccessor?.hasModifier(INLINE_KEYWORD) == true
                     isExternal = property.hasModifier(EXTERNAL_KEYWORD) ||
