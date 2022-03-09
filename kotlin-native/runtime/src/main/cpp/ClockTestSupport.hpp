@@ -30,16 +30,6 @@ public:
 
     static time_point now() noexcept { return now_.load(); }
 
-    using internal::ClockWaitImpl<manual_clock>::sleep_until;
-
-    template <typename Rep, typename Period>
-    static void sleep_until(std::chrono::time_point<manual_clock, std::chrono::duration<saturating<Rep>, Period>> until) {
-        time_point before = now();
-        while (before < until) {
-            now_.compare_exchange_weak(before, until);
-        }
-    }
-
     static std::optional<time_point> pending() noexcept {
         std::unique_lock guard(pendingWaitsMutex_);
         auto it = pendingWaits_.begin();
@@ -79,6 +69,14 @@ private:
 
     // Use non-saturating type here, because step may be fed into the standard library.
     static inline constexpr auto wait_step = std::chrono::microseconds(1);
+
+    template <typename Rep, typename Period>
+    static void sleepImpl(std::chrono::time_point<manual_clock, std::chrono::duration<saturating<Rep>, Period>> until) {
+        time_point before = now();
+        while (before < until) {
+            now_.compare_exchange_weak(before, until);
+        }
+    }
 
     class PendingWaitRegistration : private Pinned {
     public:
