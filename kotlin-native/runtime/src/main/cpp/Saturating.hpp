@@ -15,10 +15,9 @@ namespace internal {
 
 template <typename From, typename Into>
 struct is_promotable :
-    public std::integral_constant<
-            bool,
+    public std::bool_constant<
             std::is_integral_v<From> && std::is_integral_v<Into> && std::is_signed_v<From> == std::is_signed_v<Into> &&
-                    sizeof(Into) >= sizeof(From)> {};
+            sizeof(Into) >= sizeof(From)> {};
 
 template <typename From, typename Into>
 inline constexpr bool is_promotable_v = is_promotable<From, Into>::value;
