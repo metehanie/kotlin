@@ -38,6 +38,8 @@ public:
             scheduledInterrupt_ = true;
         }
         wait_.notify_all();
+        // Make sure we wait for the thread to finish before starting to destroy the fields.
+        thread_.join();
     }
 
     template <typename Rep, typename Period>
