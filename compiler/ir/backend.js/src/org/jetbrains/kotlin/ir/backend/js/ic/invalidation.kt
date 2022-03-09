@@ -75,8 +75,8 @@ class CacheUpdater(
         private val incrementalCache: IncrementalCache,
         private val klibIncrementalCaches: Map<KotlinLibrary, IncrementalCache>
     ) {
-        private fun invalidateCacheForModule(externalHashes: Map<IdSignature, ULong>): Pair<Set<String>, Map<String, ULong>> {
-            val fileFingerPrints = mutableMapOf<String, ULong>()
+        private fun invalidateCacheForModule(externalHashes: Map<IdSignature, ICHash>): Pair<Set<String>, Map<String, ICHash>> {
+            val fileFingerPrints = mutableMapOf<String, ICHash>()
             val dirtyFiles = mutableSetOf<String>()
 
             if (incrementalCache.klibUpdated) {
@@ -152,8 +152,8 @@ class CacheUpdater(
             deserializer: JsIrLinker,
             dependencies: Collection<IrModuleFragment>,
             dirtyFiles: Collection<String>,
-            cleanInlineHashes: Map<IdSignature, ULong>,
-            fileFingerPrints: Map<String, ULong>
+            cleanInlineHashes: Map<IdSignature, ICHash>,
+            fileFingerPrints: Map<String, ICHash>
         ) {
             val dirtyIrFiles = irModule.files.filter { it.fileEntry.name in dirtyFiles }
 
@@ -162,7 +162,7 @@ class CacheUpdater(
             }.getFlatHashes()
 
             val hashProvider = object : InlineFunctionHashProvider {
-                override fun hashForExternalFunction(declaration: IrSimpleFunction): ULong? {
+                override fun hashForExternalFunction(declaration: IrSimpleFunction): ICHash? {
                     return declaration.symbol.signature?.let { cleanInlineHashes[it] }
                 }
             }
@@ -199,12 +199,11 @@ class CacheUpdater(
             val flatHash = File(library.moduleCanonicalName()).fileHashForIC()
             val dependencies = dependencyGraph[library] ?: error("Cannot find dependencies for ${library.libraryName}")
 
-            val transHash = HashCombiner(flatHash).also {
-                for (dep in dependencies) {
-                    val depCache = klibIncrementalCaches[dep] ?: error("Cannot cache info for ${dep.libraryName}")
-                    it.update(depCache.klibTransitiveHash)
-                }
-            }.getResult()
+            var transHash = flatHash
+            for (dep in dependencies) {
+                val depCache = klibIncrementalCaches[dep] ?: error("Cannot cache info for ${dep.libraryName}")
+                transHash = transHash.combineWith(depCache.klibTransitiveHash)
+            }
             return incrementalCache.checkAndUpdateCacheFastInfo(flatHash, transHash)
         }
 
@@ -214,7 +213,7 @@ class CacheUpdater(
 
             val incrementalCache = klibIncrementalCaches[library] ?: error("No cache provider for $library")
 
-            val sigHashes = mutableMapOf<IdSignature, ULong>()
+            val sigHashes = mutableMapOf<IdSignature, ICHash>()
             dependencies.forEach { lib ->
                 klibIncrementalCaches[lib]?.let { libCache ->
                     libCache.fetchCacheDataForDependency()

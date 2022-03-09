@@ -29,18 +29,18 @@ class InlineFunctionFlatHashBuilder : IrElementVisitorVoid {
         declaration.acceptChildren(this, null)
     }
 
-    private val flatHashes = mutableMapOf<IrSimpleFunction, ULong>()
+    private val flatHashes = mutableMapOf<IrSimpleFunction, ICHash>()
 
     fun getFlatHashes() = flatHashes
 }
 
 interface InlineFunctionHashProvider {
-    fun hashForExternalFunction(declaration: IrSimpleFunction): ULong?
+    fun hashForExternalFunction(declaration: IrSimpleFunction): ICHash?
 }
 
 class InlineFunctionHashBuilder(
     private val hashProvider: InlineFunctionHashProvider,
-    private val flatHashes: Map<IrSimpleFunction, ULong>
+    private val flatHashes: Map<IrSimpleFunction, ICHash>
 ) {
     private val inlineFunctionCallGraph: MutableMap<IrSimpleFunction, Set<IrSimpleFunction>> = mutableMapOf()
 
@@ -69,32 +69,31 @@ class InlineFunctionHashBuilder(
     }
 
     private inner class InlineFunctionHashProcessor {
-        private val computedHashes = mutableMapOf<IrSimpleFunction, ULong>()
+        private val computedHashes = mutableMapOf<IrSimpleFunction, ICHash>()
         private val processingFunctions = mutableSetOf<IrSimpleFunction>()
 
-        private fun processInlineFunction(f: IrSimpleFunction): ULong = computedHashes.getOrPut(f) {
+        private fun processInlineFunction(f: IrSimpleFunction): ICHash = computedHashes.getOrPut(f) {
             if (!processingFunctions.add(f)) {
                 error("Inline circle through function ${f.render()} detected")
             }
             val callees = inlineFunctionCallGraph[f] ?: error("Internal error: Inline function is missed in inline graph ${f.render()}")
             val flatHash = flatHashes[f] ?: error("Internal error: No flat hash for ${f.render()}")
-            val functionInlineHash = HashCombiner(flatHash).also {
-                for (callee in callees) {
-                    it.update(processCallee(callee))
-                }
-            }.getResult()
+            var functionInlineHash = flatHash
+            for (callee in callees) {
+                functionInlineHash = functionInlineHash.combineWith(processCallee(callee))
+            }
             processingFunctions.remove(f)
             functionInlineHash
         }
 
-        private fun processCallee(callee: IrSimpleFunction): ULong {
+        private fun processCallee(callee: IrSimpleFunction): ICHash {
             if (callee in flatHashes) {
                 return processInlineFunction(callee)
             }
             return hashProvider.hashForExternalFunction(callee) ?: error("Internal error: No hash found for ${callee.render()}")
         }
 
-        fun process(): Map<IrSimpleFunction, ULong> {
+        fun process(): Map<IrSimpleFunction, ICHash> {
             for ((f, callees) in inlineFunctionCallGraph.entries) {
                 if (f.isInline) {
                     processInlineFunction(f)
@@ -106,18 +105,18 @@ class InlineFunctionHashBuilder(
         }
     }
 
-    fun buildHashes(dirtyFiles: Collection<IrFile>): Map<IrSimpleFunction, ULong> {
+    fun buildHashes(dirtyFiles: Collection<IrFile>): Map<IrSimpleFunction, ICHash> {
         dirtyFiles.forEach { it.acceptChildren(GraphBuilder(), mutableSetOf()) }
         return InlineFunctionHashProcessor().process()
     }
 
-    fun buildInlineGraph(computedHashed: Map<IrSimpleFunction, ULong>): Map<IrFile, Map<IdSignature, ULong>> {
+    fun buildInlineGraph(computedHashed: Map<IrSimpleFunction, ICHash>): Map<IrFile, Map<IdSignature, ICHash>> {
         val perFileInlineGraph = inlineFunctionCallGraph.entries.groupBy({ it.key.file }) {
             it.value
         }
 
         return perFileInlineGraph.entries.associate {
-            val usedInlineFunctions = mutableMapOf<IdSignature, ULong>()
+            val usedInlineFunctions = mutableMapOf<IdSignature, ICHash>()
             it.value.forEach { edges ->
                 edges.forEach { callee ->
                     if (!callee.isFakeOverride) {

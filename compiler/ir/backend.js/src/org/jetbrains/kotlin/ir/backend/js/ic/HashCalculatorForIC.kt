@@ -10,8 +10,23 @@ import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.util.DumpIrTreeVisitor
 import org.jetbrains.kotlin.js.config.JSConfigurationKeys
 import org.jetbrains.kotlin.library.KotlinLibrary
+import org.jetbrains.kotlin.protobuf.CodedInputStream
+import org.jetbrains.kotlin.protobuf.CodedOutputStream
 import java.io.File
 import java.security.MessageDigest
+
+@JvmInline
+value class ICHash(private val value: ULong = 0UL) {
+    fun combineWith(other: ICHash) = ICHash(value xor (other.value + 0x9e3779b97f4a7c15UL + (value shl 12) + (value shr 4)))
+
+    override fun toString() = value.toString(16)
+
+    fun toProtoStream(out: CodedOutputStream) = out.writeFixed64NoTag(value.toLong())
+
+    companion object {
+        fun fromProtoStream(input: CodedInputStream) = ICHash(input.readFixed64().toULong())
+    }
+}
 
 private class HashCalculatorForIC {
     private companion object {
@@ -33,15 +48,13 @@ private class HashCalculatorForIC {
         return hash
     }
 
-    fun finalize(): ULong {
+    fun finalize(): ICHash {
         val d = md5.digest()
-        val combiner = HashCombiner(bytesToULong(d, 0))
-        combiner.update(bytesToULong(d, 8))
-        return combiner.getResult()
+        return ICHash(bytesToULong(d, 0)).combineWith(ICHash(bytesToULong(d, 8)))
     }
 }
 
-internal fun File.fileHashForIC(): ULong {
+internal fun File.fileHashForIC(): ICHash {
     val md5 = HashCalculatorForIC()
     fun File.process(prefix: String = "") {
         if (isDirectory) {
@@ -86,11 +99,3 @@ internal fun KotlinLibrary.fingerprint(fileIndex: Int) = HashCalculatorForIC().a
     update(declarations(fileIndex))
     update(bodies(fileIndex))
 }.finalize()
-
-internal class HashCombiner(private var seed: ULong = 0UL) {
-    fun update(hash: ULong) {
-        seed = seed xor (hash + 0x9e3779b97f4a7c15UL + (seed shl 12) + (hash shr 4))
-    }
-
-    fun getResult() = seed
-}

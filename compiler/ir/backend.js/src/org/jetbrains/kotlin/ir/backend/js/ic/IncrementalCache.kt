@@ -22,15 +22,15 @@ class IncrementalCache(private val library: KotlinLibrary, cachePath: String) : 
     companion object {
         private const val cacheFullInfoFile = "cache.full.info"
         private const val cacheFastInfoFile = "cache.fast.info"
-        private const val binaryAstSuffix = ".binary.ast"
+        private const val binaryAstSuffix = "binary.ast"
     }
 
     class CacheFastInfo(
         var moduleName: String? = null,
-        var flatHash: ULong = 0UL,
-        var transHash: ULong = 0UL,
-        var configHash: ULong = 0UL,
-        var initialFlatHash: ULong = 0UL
+        var flatHash: ICHash = ICHash(),
+        var transHash: ICHash = ICHash(),
+        var configHash: ICHash = ICHash(),
+        var initialFlatHash: ICHash = ICHash()
     )
 
     private enum class CacheState { NON_LOADED, FETCHED_FOR_DEPENDENCY, FETCHED_FULL }
@@ -40,27 +40,27 @@ class IncrementalCache(private val library: KotlinLibrary, cachePath: String) : 
     private val cacheDir = File(cachePath)
     private val signatureToIdMapping = mutableMapOf<String, Map<IdSignature, Int>>()
 
-    private val fingerprints = mutableMapOf<String, ULong>()
-    private val usedInlineFunctions = mutableMapOf<String, Map<IdSignature, ULong>>()
-    private val implementedInlineFunctions = mutableMapOf<String, Map<IdSignature, ULong>>()
+    private val fingerprints = mutableMapOf<String, ICHash>()
+    private val usedInlineFunctions = mutableMapOf<String, Map<IdSignature, ICHash>>()
+    private val implementedInlineFunctions = mutableMapOf<String, Map<IdSignature, ICHash>>()
 
     private var cacheFastInfo = CacheFastInfo().apply {
         File(cacheDir, cacheFastInfoFile).useCodedInputIfExists {
             moduleName = readString()
-            flatHash = readFixed64().toULong()
-            transHash = readFixed64().toULong()
-            configHash = readFixed64().toULong()
+            flatHash = ICHash.fromProtoStream(this)
+            transHash = ICHash.fromProtoStream(this)
+            configHash = ICHash.fromProtoStream(this)
         }
         initialFlatHash = flatHash
     }
 
-    val srcFingerprints: Map<String, ULong> get() = fingerprints
-    val usedFunctions: Map<String, Map<IdSignature, ULong>> get() = usedInlineFunctions
-    val implementedFunctions: Collection<Map<IdSignature, ULong>> get() = implementedInlineFunctions.values
+    val srcFingerprints: Map<String, ICHash> get() = fingerprints
+    val usedFunctions: Map<String, Map<IdSignature, ICHash>> get() = usedInlineFunctions
+    val implementedFunctions: Collection<Map<IdSignature, ICHash>> get() = implementedInlineFunctions.values
 
-    val klibUpdated: Boolean get() = cacheFastInfo.run { initialFlatHash == 0UL || initialFlatHash != flatHash }
+    val klibUpdated: Boolean get() = cacheFastInfo.run { initialFlatHash == ICHash() || initialFlatHash != flatHash }
 
-    val klibTransitiveHash: ULong get() = cacheFastInfo.transHash
+    val klibTransitiveHash: ICHash get() = cacheFastInfo.transHash
 
     var srcFilesInOrderFromKLib: List<String> = emptyList()
         private set
@@ -73,21 +73,21 @@ class IncrementalCache(private val library: KotlinLibrary, cachePath: String) : 
     }
 
     fun updateHashes(
-        srcPath: String, fingerprint: ULong, usedFunctions: Map<IdSignature, ULong>?, implementedFunctions: Map<IdSignature, ULong>?
+        srcPath: String, fingerprint: ICHash, usedFunctions: Map<IdSignature, ICHash>?, implementedFunctions: Map<IdSignature, ICHash>?
     ) {
         fingerprints[srcPath] = fingerprint
         usedFunctions?.let { usedInlineFunctions[srcPath] = it }
         implementedFunctions?.let { implementedInlineFunctions[srcPath] = it }
     }
 
-    fun invalidateCacheForNewConfig(configHash: ULong) {
+    fun invalidateCacheForNewConfig(configHash: ICHash) {
         if (cacheFastInfo.configHash != configHash) {
             invalidate()
             cacheFastInfo.configHash = configHash
         }
     }
 
-    fun checkAndUpdateCacheFastInfo(flatHash: ULong, transHash: ULong): Boolean {
+    fun checkAndUpdateCacheFastInfo(flatHash: ICHash, transHash: ICHash): Boolean {
         if (cacheFastInfo.transHash != transHash) {
             cacheFastInfo.flatHash = flatHash
             cacheFastInfo.transHash = transHash
@@ -101,23 +101,23 @@ class IncrementalCache(private val library: KotlinLibrary, cachePath: String) : 
         val name = moduleName ?: error("Internal error: uninitialized fast cache info for ${library.libraryName}")
         File(cacheDir, cacheFastInfoFile).useCodedOutput {
             writeStringNoTag(name)
-            writeFixed64NoTag(flatHash.toLong())
-            writeFixed64NoTag(transHash.toLong())
-            writeFixed64NoTag(configHash.toLong())
+            flatHash.toProtoStream(this)
+            transHash.toProtoStream(this)
+            configHash.toProtoStream(this)
         }
     }
 
     private fun CodedInputStream.readFunctionHashes(
         deserializer: IdSignatureDeserializer, signatureToId: MutableMap<IdSignature, Int>? = null
-    ): Map<IdSignature, ULong>? {
+    ): Map<IdSignature, ICHash>? {
         val functions = readInt32()
         if (functions == 0) {
             return null
         }
-        val result = mutableMapOf<IdSignature, ULong>()
+        val result = mutableMapOf<IdSignature, ICHash>()
         for (funIndex in 0 until functions) {
             val sigId = readInt32()
-            val hash = readFixed64().toULong()
+            val hash = ICHash.fromProtoStream(this)
             try {
                 val signature = deserializer.deserializeIdSignature(sigId)
                 result[signature] = hash
@@ -146,7 +146,7 @@ class IncrementalCache(private val library: KotlinLibrary, cachePath: String) : 
                     val srcFiles = readInt32()
                     for (srcIndex in 0 until srcFiles) {
                         val srcPath = readString()
-                        val fingerprint = readFixed64().toULong()
+                        val fingerprint = ICHash.fromProtoStream(this)
 
                         val deserializer = signatureReadersMap[srcPath]
                         if (deserializer != null) {
@@ -186,7 +186,7 @@ class IncrementalCache(private val library: KotlinLibrary, cachePath: String) : 
             val srcFiles = readInt32()
             for (srcIndex in 0 until srcFiles) {
                 val srcPath = readString()
-                val fingerprint = readFixed64().toULong()
+                val fingerprint = ICHash.fromProtoStream(this)
 
                 val deserializer = signatureReadersMap[srcPath]
                 if (deserializer != null) {
@@ -199,16 +199,16 @@ class IncrementalCache(private val library: KotlinLibrary, cachePath: String) : 
     }
 
     private fun getBinaryAstPath(srcFile: String): File {
-        val binaryAstFileName = File(srcFile).name + srcFile.stringHashForIC().toString(16) + binaryAstSuffix
+        val binaryAstFileName = "${File(srcFile).name}.${srcFile.stringHashForIC()}.$binaryAstSuffix"
         return File(cacheDir, binaryAstFileName)
     }
 
-    private fun CodedOutputStream.writeFunctionHashes(sigToIndexMap: Map<IdSignature, Int>, hashes: Map<IdSignature, ULong>) {
+    private fun CodedOutputStream.writeFunctionHashes(sigToIndexMap: Map<IdSignature, Int>, hashes: Map<IdSignature, ICHash>) {
         writeInt32NoTag(hashes.size)
         for ((sig, functionHash) in hashes) {
             val sigId = sigToIndexMap[sig] ?: error("No index found for sig $sig")
             writeInt32NoTag(sigId)
-            writeFixed64NoTag(functionHash.toLong())
+            functionHash.toProtoStream(this)
         }
     }
 
@@ -221,7 +221,7 @@ class IncrementalCache(private val library: KotlinLibrary, cachePath: String) : 
             writeInt32NoTag(fingerprints.size)
             for ((srcPath, fingerprint) in fingerprints) {
                 writeStringNoTag(srcPath)
-                writeFixed64NoTag(fingerprint.toLong())
+                fingerprint.toProtoStream(this)
 
                 val sigToIndexMap = signatureToIdMapping[srcPath] ?: emptyMap()
                 writeFunctionHashes(sigToIndexMap, implementedInlineFunctions[srcPath] ?: emptyMap())
