@@ -425,6 +425,10 @@ targetList.each { target ->
                         UtilsKt.mergeManifestsByTargets(project, file, existingManifest)
                         exclude()
                     }
+                } else if (target != hostName && name != 'targets') {
+                    // We don't want to rewrite this parts as they are the same and may be already used
+                    // by the other build parts. Hence it copies only for the host target.
+                    exclude()
                 }
             }
         }
