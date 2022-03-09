@@ -9,6 +9,8 @@ import org.jetbrains.kotlin.builtins.PrimitiveType
 import org.jetbrains.kotlin.builtins.StandardNames
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Modality
+import org.jetbrains.kotlin.descriptors.ValueClassEnum
+import org.jetbrains.kotlin.descriptors.jvmInlineLoweringMode
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.*
 import org.jetbrains.kotlin.fir.declarations.utils.*
@@ -22,10 +24,7 @@ import org.jetbrains.kotlin.fir.symbols.ConeClassLikeLookupTag
 import org.jetbrains.kotlin.fir.symbols.ConeTypeParameterLookupTag
 import org.jetbrains.kotlin.fir.symbols.ensureResolved
 import org.jetbrains.kotlin.fir.symbols.impl.*
-import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.name.FqNameUnsafe
-import org.jetbrains.kotlin.name.SpecialNames
-import org.jetbrains.kotlin.name.StandardClassIds
+import org.jetbrains.kotlin.name.*
 import org.jetbrains.kotlin.types.TypeCheckerState
 import org.jetbrains.kotlin.types.TypeCheckerState.SupertypesPolicy.DoCustomTransform
 import org.jetbrains.kotlin.types.TypeCheckerState.SupertypesPolicy.LowerIfFlexible
@@ -552,8 +551,18 @@ interface ConeTypeContext : TypeSystemContext, TypeSystemOptimizationContext, Ty
     }
 
     override fun TypeConstructorMarker.isInlineClass(): Boolean {
-        return toFirRegularClass()?.isInline == true
+        val fields = valueClassRepresentationTypeMarkersList() ?: return false
+        return jvmInlineLoweringMode(this@ConeTypeContext, fields) == ValueClassEnum.Inline
     }
+
+    override fun TypeConstructorMarker.isMultiFieldValueClass(): Boolean {
+        val fields = valueClassRepresentationTypeMarkersList() ?: return false
+        return jvmInlineLoweringMode(this@ConeTypeContext, fields) == ValueClassEnum.MultiField
+    }
+
+    override fun TypeConstructorMarker.valueClassRepresentationTypeMarkersList(): List<Pair<Name, SimpleTypeMarker>>? =
+        toFirRegularClass()?.takeIf { it.isInline }?.primaryConstructorIfAny(session)?.fir?.valueParameters
+            ?.map { it.name to (it.returnTypeRef.coneType.asSimpleType() ?: error("Simple type expected")) }
 
     override fun TypeConstructorMarker.isInnerClass(): Boolean {
         return toFirRegularClass()?.isInner == true

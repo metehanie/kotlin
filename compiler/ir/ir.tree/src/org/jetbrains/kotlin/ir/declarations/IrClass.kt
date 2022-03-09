@@ -14,6 +14,7 @@ import org.jetbrains.kotlin.ir.util.transformIfNeeded
 import org.jetbrains.kotlin.ir.util.transformInPlace
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
+import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 
 abstract class IrClass :
     IrDeclarationBase(), IrPossiblyExternalDeclaration, IrDeclarationWithVisibility,
@@ -38,9 +39,13 @@ abstract class IrClass :
 
     abstract var thisReceiver: IrValueParameter?
 
-    abstract var inlineClassRepresentation: InlineClassRepresentation<IrSimpleType>?
+    abstract var valueClassRepresentation: ValueClassRepresentation<IrSimpleType>?
 
-    abstract var multiFieldValueClassRepresentation: MultiFieldValueClassRepresentation<IrSimpleType>?
+    val inlineClassRepresentation: InlineClassRepresentation<IrSimpleType>?
+        get() = valueClassRepresentation?.safeAs<InlineClassRepresentation<IrSimpleType>>()
+
+    val multiFieldValueClassRepresentation: MultiFieldValueClassRepresentation<IrSimpleType>?
+        get() = valueClassRepresentation?.safeAs<MultiFieldValueClassRepresentation<IrSimpleType>>()
 
     abstract var sealedSubclasses: List<IrClassSymbol>
 

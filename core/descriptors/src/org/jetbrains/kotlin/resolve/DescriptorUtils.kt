@@ -30,12 +30,12 @@ import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
 import org.jetbrains.kotlin.types.checker.KotlinTypeRefiner
 import org.jetbrains.kotlin.types.checker.REFINER_CAPABILITY
 import org.jetbrains.kotlin.types.checker.TypeRefinementSupport
-import org.jetbrains.kotlin.types.TypeRefinement
 import org.jetbrains.kotlin.types.typeUtil.contains
 import org.jetbrains.kotlin.types.typeUtil.isAnyOrNullableAny
 import org.jetbrains.kotlin.types.typeUtil.makeNullable
 import org.jetbrains.kotlin.utils.DFS
 import org.jetbrains.kotlin.utils.SmartList
+import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 
 private val RETENTION_PARAMETER_NAME = Name.identifier("value")
 
@@ -450,3 +450,9 @@ fun <D : CallableDescriptor> D.shouldBeSubstituteWithStubTypes() =
             && dispatchReceiverParameter?.type?.isError != true
             && extensionReceiverParameter?.type?.isError != true
             && containsStubTypes()
+
+val ClassDescriptor?.inlineClassRepresentation: InlineClassRepresentation<SimpleType>?
+    get() = this?.valueClassRepresentation?.safeAs<InlineClassRepresentation<SimpleType>>()
+
+val ClassDescriptor?.multiFieldValueClassRepresentation: MultiFieldValueClassRepresentation<SimpleType>?
+    get() = this?.valueClassRepresentation?.safeAs<MultiFieldValueClassRepresentation<SimpleType>>()

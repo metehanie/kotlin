@@ -101,16 +101,12 @@ class IrLazyClass(
         }
     }
 
-    override var inlineClassRepresentation: InlineClassRepresentation<IrSimpleType>? by lazyVar(stubGenerator.lock) {
-        descriptor.inlineClassRepresentation?.mapUnderlyingType(::simplyTypeToIrOrThrow)
+    override var valueClassRepresentation: ValueClassRepresentation<IrSimpleType>? by lazyVar(stubGenerator.lock) {
+        descriptor.valueClassRepresentation?.mapUnderlyingType(::simplyTypeToIrOrThrow)
     }
 
     private fun simplyTypeToIrOrThrow(it: SimpleType) =
-        it.toIrType() as? IrSimpleType ?: error("Inline class underlying type is not a simple type: ${render()}")
-
-    override var multiFieldValueClassRepresentation: MultiFieldValueClassRepresentation<IrSimpleType>? by lazyVar(stubGenerator.lock) {
-        descriptor.multiFieldValueClassRepresentation?.mapUnderlyingType(::simplyTypeToIrOrThrow)
-    }
+        it.toIrType() as? IrSimpleType ?: error("Value class underlying type is not a simple type: ${render()}")
 
     override var attributeOwnerId: IrAttributeContainer = this
 

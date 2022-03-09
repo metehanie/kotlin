@@ -35,9 +35,9 @@ internal fun ConeKotlinType.unsubstitutedUnderlyingTypeForInlineClass(session: F
     return symbol.fir.getInlineClassUnderlyingParameter(session)?.returnTypeRef?.coneType
 }
 
-// TODO: implement inlineClassRepresentation in FirRegularClass instead.
+// TODO: implement inlineClassRepresentation in FirRegularClass instead. zhelenskiy
 fun FirRegularClass.getInlineClassUnderlyingParameter(session: FirSession): FirValueParameter? =
     if (isInline) primaryConstructorIfAny(session)?.fir?.valueParameters?.singleOrNull() else null
 
-fun FirRegularClass.getMultiFieldValueClassUnderlyingParameters(session: FirSession): List<FirValueParameter>? =
-    if (isInline) primaryConstructorIfAny(session)?.fir?.valueParameters?.takeIf { it.size > 1 } else null
+fun FirRegularClass.getValueClassUnderlyingParameters(session: FirSession): List<FirValueParameter>? =
+    if (isInline) primaryConstructorIfAny(session)?.fir?.valueParameters else null

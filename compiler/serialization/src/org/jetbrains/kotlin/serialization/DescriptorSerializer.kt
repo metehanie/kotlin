@@ -31,6 +31,8 @@ import org.jetbrains.kotlin.resolve.constants.EnumValue
 import org.jetbrains.kotlin.resolve.constants.IntValue
 import org.jetbrains.kotlin.resolve.constants.NullValue
 import org.jetbrains.kotlin.resolve.constants.StringValue
+import org.jetbrains.kotlin.resolve.descriptorUtil.inlineClassRepresentation
+import org.jetbrains.kotlin.resolve.descriptorUtil.multiFieldValueClassRepresentation
 import org.jetbrains.kotlin.resolve.descriptorUtil.nonSourceAnnotations
 import org.jetbrains.kotlin.serialization.deserialization.ProtoEnumFlags
 import org.jetbrains.kotlin.serialization.deserialization.descriptorVisibility
@@ -92,7 +94,7 @@ class DescriptorSerializer private constructor(
             ProtoEnumFlags.modality(classDescriptor.modality),
             ProtoEnumFlags.classKind(classDescriptor.kind, classDescriptor.isCompanionObject),
             classDescriptor.isInner, classDescriptor.isData, classDescriptor.isExternal, classDescriptor.isExpect,
-            classDescriptor.isInlineOrValueClass(), classDescriptor.isFun
+            classDescriptor.isValueClass(), classDescriptor.isFun
         )
         if (flags != builder.flags) {
             builder.flags = flags
@@ -171,21 +173,41 @@ class DescriptorSerializer private constructor(
             builder.companionObjectName = getSimpleNameIndex(companionObjectDescriptor.name)
         }
 
-        val representation = classDescriptor.inlineClassRepresentation
-        if (representation != null) {
-            builder.inlineClassUnderlyingPropertyName = getSimpleNameIndex(representation.underlyingPropertyName)
+        classDescriptor.inlineClassRepresentation?.let { inlineClassRepresentation ->
+            builder.inlineClassUnderlyingPropertyName = getSimpleNameIndex(inlineClassRepresentation.underlyingPropertyName)
 
             val property = callableMembers.single {
-                it is PropertyDescriptor && it.extensionReceiverParameter == null && it.name == representation.underlyingPropertyName
+                it is PropertyDescriptor && it.extensionReceiverParameter == null && it.name == inlineClassRepresentation.underlyingPropertyName
             }
             if (!property.visibility.isPublicAPI) {
                 if (useTypeTable()) {
-                    builder.inlineClassUnderlyingTypeId = typeId(representation.underlyingType)
+                    builder.inlineClassUnderlyingTypeId = typeId(inlineClassRepresentation.underlyingType)
                 } else {
-                    builder.setInlineClassUnderlyingType(type(representation.underlyingType))
+                    builder.setInlineClassUnderlyingType(type(inlineClassRepresentation.underlyingType))
                 }
             }
         }
+
+        classDescriptor.multiFieldValueClassRepresentation?.let { multiFieldValueClassRepresentation ->
+            builder.setMultiFieldValueClassRepresentation(ProtoBuf.Class.MultiFieldValueClassRepresentation.newBuilder().apply {
+                val properties =
+                    callableMembers.filter { it is PropertyDescriptor && it.extensionReceiverParameter == null }.associateBy { it.name }
+                addAllProperty(multiFieldValueClassRepresentation.underlyingPropertyNamesToTypes.map { (name, kotlinType) ->
+                    ProtoBuf.Class.MultiFieldValueClassRepresentation.MultiFieldValueClassProperty.newBuilder().apply {
+                        this.name = getSimpleNameIndex(name)
+                        val property = properties[name] ?: error("Unexpected name $name")
+                        if (!property.visibility.isPublicAPI) {
+                            if (useTypeTable()) {
+                                this.typeId = typeId(kotlinType)
+                            } else {
+                                this.setType(type(kotlinType))
+                            }
+                        }
+                    }.build()
+                })
+            })
+        }
+
 
         if (versionRequirementTable == null) error("Version requirements must be serialized for classes: $classDescriptor")
 
@@ -513,7 +535,8 @@ class DescriptorSerializer private constructor(
         val builder = ProtoBuf.TypeAlias.newBuilder()
         val local = createChildSerializer(descriptor)
 
-        val flags = Flags.getTypeAliasFlags(hasAnnotations(descriptor), ProtoEnumFlags.descriptorVisibility(normalizeVisibility(descriptor)))
+        val flags =
+            Flags.getTypeAliasFlags(hasAnnotations(descriptor), ProtoEnumFlags.descriptorVisibility(normalizeVisibility(descriptor)))
         if (flags != builder.flags) {
             builder.flags = flags
         }

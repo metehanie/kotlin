@@ -17,7 +17,10 @@ import org.jetbrains.kotlin.incremental.record
 import org.jetbrains.kotlin.metadata.ProtoBuf
 import org.jetbrains.kotlin.metadata.deserialization.*
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.resolve.*
+import org.jetbrains.kotlin.resolve.CliSealedClassInheritorsProvider
+import org.jetbrains.kotlin.resolve.DescriptorFactory
+import org.jetbrains.kotlin.resolve.NonReportingOverrideStrategy
+import org.jetbrains.kotlin.resolve.OverridingUtil
 import org.jetbrains.kotlin.resolve.descriptorUtil.classId
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
@@ -68,9 +71,7 @@ class DeserializedClassDescriptor(
     private val constructors = c.storageManager.createLazyValue { computeConstructors() }
     private val companionObjectDescriptor = c.storageManager.createNullableLazyValue { computeCompanionObjectDescriptor() }
     private val sealedSubclasses = c.storageManager.createLazyValue { computeSubclassesForSealedClass() }
-    private val inlineClassRepresentation = c.storageManager.createNullableLazyValue { computeInlineClassRepresentation() }
-    private val multiFieldValueClassRepresentation =
-        c.storageManager.createNullableLazyValue { computeMultiFieldValueClassRepresentation() }
+    private val valueClassRepresentation = c.storageManager.createNullableLazyValue { computeValueClassRepresentation() }
 
     internal val thisAsProtoContainer: ProtoContainer.Class = ProtoContainer.Class(
         classProto, c.nameResolver, c.typeTable, sourceElement,
@@ -182,12 +183,28 @@ class DeserializedClassDescriptor(
 
     override fun getSealedSubclasses() = sealedSubclasses()
 
-    override fun getInlineClassRepresentation(): InlineClassRepresentation<SimpleType>? = inlineClassRepresentation()
-    override fun getMultiFieldValueClassRepresentation(): MultiFieldValueClassRepresentation<SimpleType>? =
-        multiFieldValueClassRepresentation()
+    override fun getValueClassRepresentation(): ValueClassRepresentation<SimpleType>? = valueClassRepresentation()
+
+    private fun computeValueClassRepresentation(): ValueClassRepresentation<SimpleType>? {
+        val inlineClassRepresentation = computeInlineClassRepresentation()
+        val multiFieldValueClassRepresentation = computeMultiFieldValueClassRepresentation()
+        return when {
+            inlineClassRepresentation != null && multiFieldValueClassRepresentation != null ->
+                throw IllegalArgumentException("Class cannot have both inline class representation and multi field class representation")
+            (isValue || isInline) && inlineClassRepresentation == null && multiFieldValueClassRepresentation == null ->
+                throw IllegalArgumentException("Value class has no value class representation")
+            else -> inlineClassRepresentation ?: multiFieldValueClassRepresentation
+        }
+    }
 
     private fun computeInlineClassRepresentation(): InlineClassRepresentation<SimpleType>? {
-        if (!isInlineClass()) return null
+        if (!isInline && !isValue) return null
+        if (isValue &&
+            !classProto.hasInlineClassUnderlyingPropertyName() &&
+            !classProto.hasInlineClassUnderlyingType() &&
+            !classProto.hasInlineClassUnderlyingTypeId() &&
+            classProto.hasMultiFieldValueClassRepresentation()
+        ) return null
 
         val propertyName = when {
             classProto.hasInlineClassUnderlyingPropertyName() ->
@@ -214,9 +231,9 @@ class DeserializedClassDescriptor(
     }
 
     private fun computeMultiFieldValueClassRepresentation(): MultiFieldValueClassRepresentation<SimpleType>? {
-        if (!isValueClass() || isInlineClass()) return null
-        val representation = classProto.multiFieldValueClassRepresentation
-            ?: error("No multiFieldValueClassRepresentation for multi-field value class: $this")
+        val representation = classProto.multiFieldValueClassRepresentation.takeIf { it.propertyList.isNotEmpty() }
+            ?: return null
+        require(isValue)
         val propertyList = representation.propertyList.map { valueClassProperty ->
             val name: Name = c.nameResolver.getName(valueClassProperty.name)
             val protoType: ProtoBuf.Type = when {
@@ -226,7 +243,6 @@ class DeserializedClassDescriptor(
             }
             name to c.typeDeserializer.simpleType(protoType)
         }
-        require(propertyList.size > 1)
         require(propertyList.distinctBy { (name, _) -> name }.size == propertyList.size)
         return MultiFieldValueClassRepresentation(propertyList)
     }
