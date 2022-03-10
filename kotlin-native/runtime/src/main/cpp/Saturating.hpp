@@ -267,10 +267,10 @@ using uint_sat64_t = saturating<uint64_t>;
 using size_sat_t = saturating<size_t>;
 
 template <typename T>
-struct is_saturating : public std::bool_constant<false> {};
+struct is_saturating : public std::false_type {};
 
 template <typename T>
-struct is_saturating<saturating<T>> : public std::bool_constant<true> {};
+struct is_saturating<saturating<T>> : public std::true_type {};
 
 template <typename T>
 inline constexpr bool is_saturating_v = is_saturating<T>::value;
