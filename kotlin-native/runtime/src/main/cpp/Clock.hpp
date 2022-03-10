@@ -56,25 +56,25 @@ void waitUntilViaFor(
 }
 
 template <typename T, typename Lock>
-struct IsStdCV : public std::bool_constant<false> {};
+struct IsStdCV : public std::false_type {};
 
 template <>
-struct IsStdCV<std::condition_variable, std::unique_lock<std::mutex>> : public std::bool_constant<true> {};
+struct IsStdCV<std::condition_variable, std::unique_lock<std::mutex>> : public std::true_type {};
 
 template <typename Lock>
-struct IsStdCV<std::condition_variable_any, Lock> : public std::bool_constant<true> {};
+struct IsStdCV<std::condition_variable_any, Lock> : public std::true_type {};
 
 template <typename T, typename Lock>
 inline constexpr bool isStdCV = IsStdCV<T, Lock>::value;
 
 template <typename T>
-struct IsStdFuture : public std::bool_constant<false> {};
+struct IsStdFuture : public std::false_type {};
 
 template <typename T>
-struct IsStdFuture<std::future<T>> : public std::bool_constant<true> {};
+struct IsStdFuture<std::future<T>> : public std::true_type {};
 
 template <typename T>
-struct IsStdFuture<std::shared_future<T>> : public std::bool_constant<true> {};
+struct IsStdFuture<std::shared_future<T>> : public std::true_type {};
 
 template <typename T>
 inline constexpr bool isStdFuture = IsStdFuture<T>::value;
